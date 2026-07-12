@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hambalyo - Digital Wedding Message Wall</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ivory: '#FAF6F0',
+                        burgundy: {
+                            DEFAULT: '#5C061E',
+                            light: '#7D122D'
+                        },
+                        gold: {
+                            light: '#F3E5AB',
+                            DEFAULT: '#D4AF37',
+                            dark: '#AA7C11'
+                        },
+                        card: '#FCFAF6'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                        playfair: ['Playfair Display', 'serif'],
+                        alex: ['Alex Brush', 'cursive']
+                    },
+                    boxShadow: {
+                        'glow-gold': '0 4px 14px 0 rgba(212, 175, 55, 0.39)',
+                        'card-soft': '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Pattern Background */
+        .bg-pattern {
+            background-color: #FAF6F0;
+            background-image: radial-gradient(rgba(212, 175, 55, 0.2) 1.5px, transparent 1.5px);
+            background-size: 30px 30px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FAF6F0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #7D122D;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #5C061E;
+        }
+
+        /* Card Ornaments */
+        .card-ornament {
+            position: relative;
+        }
+        .card-ornament::before, .card-ornament::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 1px solid rgba(212, 175, 55, 0.5);
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+        .card-ornament::before {
+            top: 6px;
+            left: 6px;
+            border-right: none;
+            border-bottom: none;
+        }
+        .card-ornament::after {
+            bottom: 6px;
+            right: 6px;
+            border-left: none;
+            border-top: none;
+        }
+
+        /* Hover states */
+        .hover-lift {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(212, 175, 55, 0.15);
+        }
+        .hover-lift:hover.card-ornament::before,
+        .hover-lift:hover.card-ornament::after {
+            border-color: #D4AF37;
+            width: 25px;
+            height: 25px;
+        }
+
+        /* Animations */
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeInScale 0.5s ease forwards;
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+
+        /* Hide scrollbar for filter container */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-pattern text-gray-800 min-h-screen flex flex-col font-inter selection:bg-gold-light selection:text-burgundy">
+
+    <!-- Navbar / Header -->
+    <header class="w-full pt-10 pb-6 px-6 relative z-10 text-center">
+        <!-- Top Right Actions -->
+        <div class="absolute top-6 right-6 flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-4">
+            <div class="flex items-center gap-2 text-xs sm:text-sm font-medium text-burgundy-light bg-white/50 px-3 py-1.5 rounded-full border border-gold/30 shadow-sm backdrop-blur-sm" id="syncStatus">
+                <div class="w-2 h-2 rounded-full bg-yellow-500 pulse-dot" id="syncDot"></div>
+                <span id="syncText">Local Mode</span>
+            </div>
+            <button onclick="openModal()" class="text-xs sm:text-sm font-medium text-burgundy hover:text-burgundy-light transition-colors border border-burgundy/20 hover:border-burgundy/50 px-4 py-1.5 rounded-full bg-white/50 backdrop-blur-sm shadow-sm hover:shadow-md">
+                <i class="fa-solid fa-pen-fancy mr-2"></i>Customize Lamaanaha
+            </button>
+        </div>
+
+        <div class="max-w-4xl mx-auto mt-12 sm:mt-4">
+            <div class="flex items-center justify-center gap-4 mb-2">
+                <i class="fa-solid fa-gem text-gold text-xs"></i>
+                <h1 class="font-playfair text-4xl sm:text-5xl md:text-6xl text-burgundy font-bold" id="coupleNamesDisplay">Muna & Axmed</h1>
+                <i class="fa-solid fa-gem text-gold text-xs"></i>
+            </div>
+            <p class="font-inter text-gray-600 text-base sm:text-lg md:text-xl font-light tracking-wide mt-2">Leave a message for the happy couple</p>
+            
+            <nav class="mt-8 flex justify-center gap-6 sm:gap-8 font-inter text-xs sm:text-sm tracking-widest uppercase text-gray-500">
+                <a href="#" class="hover:text-burgundy transition-colors">Gallery</a>
+                <a href="#" class="hover:text-burgundy transition-colors">Story</a>
+                <a href="#" class="hover:text-burgundy transition-colors">Registry</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 flex flex-col lg:flex-row gap-8 lg:gap-10 relative z-10">
+        
+        <!-- Left Column: Form -->
+        <aside class="w-full lg:w-[35%] xl:w-[30%] shrink-0">
+            <div class="bg-card rounded-xl p-6 sm:p-8 card-ornament shadow-card-soft border border-gold/10 sticky top-8">
+                <h2 class="font-playfair text-2xl text-burgundy mb-6">Leave a Message</h2>
+                
+                <form id="wishForm" class="flex flex-col gap-5">
+                    <!-- Name Input -->
+                    <div>
+                        <label class="block text-xs font-semibold tracking-wider text-gray-500 uppercase mb-2">Your Name</label>
+                        <input type="text" id="guestName" maxlength="40" required placeholder="e.g. Aisha" 
+                            class="w-full bg-ivory/50 border border-gold/30 rounded-md px-4 py-3 text-sm focus:outline-none focus:border-burgundy focus:ring-1 focus:ring-burgundy transition-colors placeholder:text-gray-400">
+                    </div>
+
+                    <!-- Relationship Tags -->
+                    <div>
+                        <label class="block text-xs font-semibold tracking-wider text-gray-500 uppercase mb-2">Relationship</label>
+                        <div class="flex flex-wrap gap-2" id="relationshipTags">
+                            <!-- Tags will be rendered here by JS -->
+                        </div>
+                        <input type="hidden" id="selectedRelationship" required>
+                    </div>
+
+                    <!-- Message Textarea -->
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <label class="block text-xs font-semibold tracking-wider text-gray-500 uppercase">Your Message</label>
+                            <span id="charCount" class="text-xs text-gray-400 font-medium transition-colors">0 / 300</span>
+                        </div>
+                        <textarea id="guestMessage" maxlength="300" required placeholder="Share your wishes..." rows="4"
+                            class="w-full bg-ivory/50 border border-gold/30 rounded-md px-4 py-3 text-sm focus:outline-none focus:border-burgundy focus:ring-1 focus:ring-burgundy transition-colors placeholder:text-gray-400 resize-none"></textarea>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button id="submitBtn" type="submit" class="w-full bg-burgundy hover:bg-burgundy-light text-white font-medium py-3.5 px-4 rounded-md transition-all duration-300 shadow-md hover:shadow-glow-gold flex justify-center items-center gap-2 mt-2 group">
+                        <span>Guri nabad iyo caano leh</span>
+                        <span class="text-lg group-hover:scale-110 transition-transform">🌹</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Right Column: Wall -->
+        <section class="w-full lg:w-[65%] xl:w-[70%] flex flex-col">
+            <!-- Filter & Stats Bar -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 bg-card/80 backdrop-blur-sm p-4 rounded-xl border border-gold/10 shadow-sm">
+                <div class="flex items-center gap-2 sm:gap-3 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 hide-scrollbar" id="filterContainer">
+                    <button data-filter="All" class="filter-btn active whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium bg-burgundy text-white transition-colors">All Wishes</button>
+                    <!-- Filter buttons injected by JS -->
+                </div>
+                <div class="shrink-0 flex items-center gap-2 bg-ivory px-4 py-1.5 rounded-full border border-gold/20 shadow-sm">
+                    <i class="fa-solid fa-envelope-open-text text-gold-dark text-sm"></i>
+                    <span class="text-sm font-semibold text-burgundy"><span id="msgCount">0</span> Messages</span>
+                </div>
+            </div>
+
+            <!-- Wall Grid -->
+            <div id="messagesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <!-- Messages will be injected here -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden flex-col items-center justify-center py-20 text-center animate-fade-in w-full bg-card/50 rounded-xl border border-gold/10">
+                <div class="text-5xl mb-4 text-gold/50"><i class="fa-solid fa-candle-holder"></i>🕯️</div>
+                <h3 class="font-playfair text-2xl text-burgundy mb-2">No wishes yet</h3>
+                <p class="text-gray-500 font-inter max-w-md">Be the first to write a beautiful wish for the happy couple.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full bg-[#fdfaf6] border-t border-gold/20 py-8 mt-auto z-10">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-500">
+            <div class="font-playfair text-xl text-burgundy font-semibold italic">Hambalyo</div>
+            <p>© 2026 Hambalyo Digital Stationery. Crafted with love.</p>
+            <div class="flex gap-6">
+                <a href="#" class="hover:text-burgundy transition-colors">Privacy</a>
+                <a href="#" class="hover:text-burgundy transition-colors">Terms</a>
+                <a href="#" class="hover:text-burgundy transition-colors">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Customize Modal -->
+    <div id="customizeModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden flex items-center justify-center opacity-0 transition-opacity duration-300 px-4">
+        <div class="bg-card rounded-xl p-6 sm:p-8 max-w-md w-full shadow-2xl transform scale-95 transition-transform duration-300 card-ornament border border-gold/20 relative">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-playfair text-2xl text-burgundy">Customize Lamaanaha</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-burgundy transition-colors">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-xs font-semibold tracking-wider text-gray-500 uppercase mb-2">Couple Names</label>
+                <input type="text" id="coupleNameInput" placeholder="e.g. Muna & Axmed" 
+                    class="w-full bg-ivory/50 border border-gold/30 rounded-md px-4 py-3 text-sm focus:outline-none focus:border-burgundy focus:ring-1 focus:ring-burgundy transition-colors">
+            </div>
+
+            <button onclick="saveCoupleNames()" class="w-full bg-burgundy hover:bg-burgundy-light text-white font-medium py-3 rounded-md transition-all shadow-md hover:shadow-glow-gold">
+                Save Changes
+            </button>
+        </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-glow-gold border border-gold/30 text-burgundy font-medium text-sm flex items-center gap-3 z-50 translate-y-20 opacity-0 transition-all duration-500 whitespace-nowrap">
+        <i class="fa-solid fa-check-circle text-green-500 text-lg"></i>
+        <span id="toastMsg">Message posted successfully!</span>
+    </div>
+
+    <script>
+        /* =========================================
+           SUPABASE CONFIGURATION
+           ========================================= */
+        // TO ACTIVATE SUPABASE:
+        // 1. Enter your Supabase Project URL and Anon Key below.
+        // 2. Set up two tables in your Supabase database:
+        //    Table 1: 'messages'
+        //       Columns: id (uuid, default: gen_random_uuid()), name (text), relationship (text), message (text), created_at (timestamptz, default: now())
+        //    Table 2: 'settings'
+        //       Columns: id (int4, primary key), couple_names (text)
+        // 3. Enable Realtime for both 'messages' and 'settings' tables in your Supabase Dashboard -> Database -> Replication.
+        // 4. Set RLS (Row Level Security) policies to allow anon inserts and selects.
+
+        const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabaseClient = null;
+        if (SUPABASE_URL !== 'YOUR_SUPABASE_PROJECT_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY') {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // Data & State
+        const RELATIONSHIPS = ['Waalid', 'Walaal', 'Saaxiib', 'Qaraabo', 'Macallin', 'Jaar'];
+        
+        const DEFAULT_MESSAGES = [
+            { id: '1', name: "Aisha", relationship: "Saaxiib", message: "Wishing you both a lifetime of love and happiness. The ceremony was beautiful.", created_at: Date.now() - 100000 },
+            { id: '2', name: "Hooyo & Aabo", relationship: "Waalid", message: "So proud of you both today. May your home be filled with peace and blessings.", created_at: Date.now() - 200000 },
+            { id: '3', name: "Jamaal", relationship: "Walaal", message: "Congratulations to my wonderful sibling! I can't wait to see what the future holds for you both.", created_at: Date.now() - 300000 }
+        ];
+
+        let messages = [];
+        let currentFilter = 'All';
+
+        // DOM Elements
+        const form = document.getElementById('wishForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const messageInput = document.getElementById('guestMessage');
+        const charCount = document.getElementById('charCount');
+        const relationshipContainer = document.getElementById('relationshipTags');
+        const selectedRelInput = document.getElementById('selectedRelationship');
+        const messagesGrid = document.getElementById('messagesGrid');
+        const filterContainer = document.getElementById('filterContainer');
+        const msgCountDisplay = document.getElementById('msgCount');
+        const emptyState = document.getElementById('emptyState');
+        const coupleNamesDisplay = document.getElementById('coupleNamesDisplay');
+        const syncDot = document.getElementById('syncDot');
+        const syncText = document.getElementById('syncText');
+        
+        // Modal Elements
+        const modal = document.getElementById('customizeModal');
+        const coupleNameInput = document.getElementById('coupleNameInput');
+
+        // Initialization
+        async function init() {
+            if (supabaseClient) {
+                // Supabase Mode
+                syncDot.classList.replace('bg-yellow-500', 'bg-green-500');
+                syncText.textContent = "Live Sync (Supabase)";
+
+                // Fetch Couple Names
+                const { data: settingsData } = await supabaseClient.from('settings').select('couple_names').eq('id', 1).single();
+                if (settingsData && settingsData.couple_names) {
+                    coupleNamesDisplay.textContent = settingsData.couple_names;
+                }
+
+                // Fetch Initial Messages
+                const { data: dbMessages } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: false });
+                if (dbMessages && dbMessages.length > 0) {
+                    messages = dbMessages.map(m => ({
+                        ...m,
+                        created_at: new Date(m.created_at).getTime()
+                    }));
+                }
+
+                // Setup Realtime Subscriptions
+                supabaseClient.channel('public:messages')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                        // Avoid duplicating messages already inserted optimistically
+                        if (!messages.find(m => m.id === payload.new.id)) {
+                            messages.unshift({
+                                ...payload.new,
+                                created_at: new Date(payload.new.created_at).getTime()
+                            });
+                            renderMessages();
+                        }
+                    })
+                    .subscribe();
+
+                supabaseClient.channel('public:settings')
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'settings' }, payload => {
+                        if (payload.new.couple_names) {
+                            coupleNamesDisplay.textContent = payload.new.couple_names;
+                        }
+                    })
+                    .subscribe();
+
+            } else {
+                // Local Mode Fallback
+                const savedNames = localStorage.getItem('hambalyo_names') || "Muna & Axmed";
+                coupleNamesDisplay.textContent = savedNames;
+
+                const savedMessages = localStorage.getItem('hambalyo_messages');
+                if (savedMessages) {
+                    messages = JSON.parse(savedMessages);
+                } else {
+                    messages = [...DEFAULT_MESSAGES];
+                    saveMessagesLocally();
+                }
+            }
+
+            renderRelationshipTags();
+            renderFilters();
+            renderMessages();
+            setupEventListeners();
+        }
+
+        function setupEventListeners() {
+            // Character counter
+            messageInput.addEventListener('input', (e) => {
+                const len = e.target.value.length;
+                charCount.textContent = `${len} / 300`;
+                if (len >= 290) {
+                    charCount.classList.add('text-red-500');
+                    charCount.classList.remove('text-gray-400');
+                } else {
+                    charCount.classList.remove('text-red-500');
+                    charCount.classList.add('text-gray-400');
+                }
+            });
+
+            // Form Submit
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                if (!selectedRelInput.value) {
+                    showToast("Please select a relationship", true);
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = 0.7;
+
+                const newMsg = {
+                    name: document.getElementById('guestName').value.trim(),
+                    relationship: selectedRelInput.value,
+                    message: messageInput.value.trim()
+                };
+
+                if (supabaseClient) {
+                    // Insert to Supabase
+                    const { data, error } = await supabaseClient.from('messages').insert([newMsg]).select().single();
+                    if (error) {
+                        showToast("Failed to post message to database.", true);
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = 1;
+                        return;
+                    }
+                    messages.unshift({
+                        ...data,
+                        created_at: new Date(data.created_at).getTime()
+                    });
+                } else {
+                    // Local fallback
+                    newMsg.id = Date.now().toString();
+                    newMsg.created_at = Date.now();
+                    messages.unshift(newMsg);
+                    saveMessagesLocally();
+                }
+                
+                renderMessages();
+                
+                // Reset form
+                form.reset();
+                selectedRelInput.value = '';
+                document.querySelectorAll('.rel-tag').forEach(t => {
+                    t.classList.remove('bg-burgundy', 'text-white', 'border-burgundy');
+                    t.classList.add('bg-white', 'text-gray-600', 'border-gold/30');
+                });
+                charCount.textContent = '0 / 300';
+                charCount.classList.remove('text-red-500');
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = 1;
+
+                // Success Effects
+                fireConfetti();
+                showToast("Message posted beautifully! 🌹");
+            });
+        }
+
+        // Render functions
+        function renderRelationshipTags() {
+            relationshipContainer.innerHTML = '';
+            RELATIONSHIPS.forEach(rel => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'rel-tag px-3 py-1.5 rounded-full text-xs font-medium border border-gold/30 bg-white text-gray-600 hover:border-burgundy hover:text-burgundy transition-colors';
+                btn.textContent = rel;
+                
+                btn.onclick = () => {
+                    document.querySelectorAll('.rel-tag').forEach(t => {
+                        t.classList.remove('bg-burgundy', 'text-white', 'border-burgundy');
+                        t.classList.add('bg-white', 'text-gray-600', 'border-gold/30');
+                    });
+                    btn.classList.remove('bg-white', 'text-gray-600', 'border-gold/30', 'hover:text-burgundy');
+                    btn.classList.add('bg-burgundy', 'text-white', 'border-burgundy');
+                    selectedRelInput.value = rel;
+                };
+                
+                relationshipContainer.appendChild(btn);
+            });
+        }
+
+        function renderFilters() {
+            // "All" button is hardcoded in HTML, we just append the rest
+            RELATIONSHIPS.forEach(rel => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium bg-white text-gray-600 border border-gold/30 hover:border-burgundy transition-colors';
+                btn.textContent = rel;
+                btn.dataset.filter = rel;
+                filterContainer.appendChild(btn);
+            });
+
+            // Filter click events
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-btn').forEach(b => {
+                        b.classList.remove('bg-burgundy', 'text-white', 'active');
+                        b.classList.add('bg-white', 'text-gray-600', 'border', 'border-gold/30');
+                    });
+                    e.target.classList.remove('bg-white', 'text-gray-600', 'border', 'border-gold/30');
+                    e.target.classList.add('bg-burgundy', 'text-white', 'active');
+                    
+                    currentFilter = e.target.dataset.filter;
+                    renderMessages();
+                });
+            });
+        }
+
+        function renderMessages() {
+            messagesGrid.innerHTML = '';
+            
+            // Sort by newest first
+            const sorted = [...messages].sort((a, b) => b.created_at - a.created_at);
+            const filtered = currentFilter === 'All' ? sorted : sorted.filter(m => m.relationship === currentFilter);
+            
+            msgCountDisplay.textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                messagesGrid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                messagesGrid.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+
+                filtered.forEach((msg, index) => {
+                    const date = new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    
+                    const card = document.createElement('div');
+                    card.className = 'bg-card p-6 rounded-xl border border-gold/20 shadow-sm hover-lift animate-fade-in flex flex-col h-full relative overflow-hidden group';
+                    card.style.animationDelay = `${index * 0.05}s`;
+                    
+                    // Optional corner subtle glow
+                    const glow = document.createElement('div');
+                    glow.className = 'absolute -top-10 -right-10 w-24 h-24 bg-gold-light/20 rounded-full blur-xl group-hover:bg-gold-light/40 transition-colors pointer-events-none';
+                    card.appendChild(glow);
+
+                    card.innerHTML += `
+                        <div class="flex justify-between items-start mb-4 relative z-10">
+                            <span class="inline-block px-3 py-1 rounded-full bg-gold-light/40 text-burgundy text-xs font-semibold uppercase tracking-wider border border-gold/20">
+                                ${msg.relationship}
+                            </span>
+                            <span class="text-xs text-gray-400 font-medium">${date}</span>
+                        </div>
+                        <p class="font-playfair text-lg text-gray-700 italic mb-6 flex-grow leading-relaxed relative z-10">
+                            "${msg.message}"
+                        </p>
+                        <div class="flex items-center gap-3 mt-auto pt-4 border-t border-gold/10 relative z-10">
+                            <i class="fa-solid fa-feather text-gold text-sm transform -rotate-12"></i>
+                            <span class="font-inter font-medium text-burgundy">${msg.name}</span>
+                        </div>
+                    `;
+                    messagesGrid.appendChild(card);
+                });
+            }
+        }
+
+        // Helpers
+        function saveMessagesLocally() {
+            localStorage.setItem('hambalyo_messages', JSON.stringify(messages));
+        }
+
+        function fireConfetti() {
+            const count = 250;
+            const defaults = {
+                origin: { y: 0.6 },
+                colors: ['#D4AF37', '#5C061E', '#FAF6F0', '#AA7C11', '#7D122D']
+            };
+
+            function fire(particleRatio, opts) {
+                confetti(Object.assign({}, defaults, opts, {
+                    particleCount: Math.floor(count * particleRatio)
+                }));
+            }
+
+            fire(0.25, { spread: 26, startVelocity: 55 });
+            fire(0.2, { spread: 60 });
+            fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+            fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+            fire(0.1, { spread: 120, startVelocity: 45 });
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toastMsg');
+            const icon = toast.querySelector('i');
+            
+            msgEl.textContent = message;
+            
+            if (isError) {
+                toast.classList.replace('text-burgundy', 'text-red-600');
+                icon.className = 'fa-solid fa-circle-exclamation text-red-500 text-lg';
+            } else {
+                toast.classList.replace('text-red-600', 'text-burgundy');
+                icon.className = 'fa-solid fa-check-circle text-green-500 text-lg';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        // Modal Functions
+        window.openModal = () => {
+            modal.classList.remove('hidden');
+            // Slight delay to allow display:block to apply before animating opacity
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.firstElementChild.classList.remove('scale-95');
+                modal.firstElementChild.classList.add('scale-100');
+            }, 10);
+            coupleNameInput.value = coupleNamesDisplay.textContent;
+        };
+
+        window.closeModal = () => {
+            modal.classList.add('opacity-0');
+            modal.firstElementChild.classList.remove('scale-100');
+            modal.firstElementChild.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        };
+
+        window.saveCoupleNames = async () => {
+            const newName = coupleNameInput.value.trim();
+            if (newName) {
+                if (supabaseClient) {
+                    const { error } = await supabaseClient.from('settings').upsert({ id: 1, couple_names: newName });
+                    if (error) {
+                        showToast("Failed to update names in database.", true);
+                        return;
+                    }
+                } else {
+                    localStorage.setItem('hambalyo_names', newName);
+                }
+                
+                coupleNamesDisplay.textContent = newName;
+                showToast("Names updated beautifully! ✨");
+                closeModal();
+            }
+        };
+
+        // Close modal on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Run Init
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
